@@ -175,3 +175,5 @@ cython_debug/
 
 DataSet/
 steatosis_classification_plan.md
+evaluation_plan.md
+evaluate_model.py
