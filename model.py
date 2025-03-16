@@ -3,6 +3,7 @@ import torch.nn as nn
 from pathlib import Path
 from typing import Optional, List, Union
 from collections import OrderedDict
+import torchvision.models as models
 
 class SteatosisModel(nn.Module):
     """DenseNet121 model adapted for steatosis classification."""
@@ -17,14 +18,23 @@ class SteatosisModel(nn.Module):
         Initialize the model.
         
         Args:
-            pretrained_path: Path to pretrained DenseNet121 model
+            pretrained_path: Path to preprocessed DenseNet121 state dict
             num_classes: Number of output classes (2 for binary, 4 for multi-class)
             freeze_layers: Whether to freeze pretrained layers initially
         """
         super().__init__()
         
-        # Load pretrained model
-        self.model = torch.load(pretrained_path)
+        # Initialize base DenseNet121 model
+        self.model = models.densenet121(weights=None)
+        
+        # Load preprocessed weights
+        try:
+            state_dict = torch.load(pretrained_path)
+            self.model.load_state_dict(state_dict, strict=False)
+            print("Successfully loaded pretrained weights")
+        except Exception as e:
+            print(f"Error loading pretrained weights: {str(e)}")
+            raise
         
         # Store current device
         self.device = next(self.model.parameters()).device
@@ -49,12 +59,9 @@ class SteatosisModel(nn.Module):
     
     def freeze_pretrained_layers(self) -> None:
         """Freeze all layers except the classifier."""
-        for param in self.model.parameters():
-            param.requires_grad = False
-            
-        # Unfreeze classifier
-        for param in self.model.classifier.parameters():
-            param.requires_grad = True
+        for name, param in self.model.named_parameters():
+            if 'classifier' not in name:
+                param.requires_grad = False
     
     def unfreeze_layers(self, num_blocks: Optional[int] = None) -> None:
         """
@@ -77,7 +84,7 @@ class SteatosisModel(nn.Module):
             if 'denseblock' in name:
                 if blocks_seen < num_blocks:
                     param.requires_grad = True
-                    if 'transition' not in name:  # New block
+                    if 'denselayer1.norm1' in name:  # New block
                         blocks_seen += 1
                 else:
                     break
@@ -154,20 +161,21 @@ class SteatosisModel(nn.Module):
             raise ValueError(f"Unsupported scheduler type: {scheduler_type}")
     
     def save(self, path: Union[str, Path]) -> None:
-        """Save model to path."""
-        torch.save(self.model, path)
+        """Save model state dict."""
+        torch.save(self.model.state_dict(), path)
     
-    @staticmethod
+    @classmethod
     def load(
+        cls,
         path: Union[str, Path],
         num_classes: int = 2,
         device: Optional[str] = None
     ) -> 'SteatosisModel':
         """
-        Load model from path.
+        Load model from state dict.
         
         Args:
-            path: Path to saved model
+            path: Path to saved model state dict
             num_classes: Number of output classes
             device: Device to load model to ('cuda' or 'cpu')
             
@@ -177,10 +185,7 @@ class SteatosisModel(nn.Module):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             
-        model = SteatosisModel(
-            pretrained_path=path,
-            num_classes=num_classes
-        )
+        model = cls(path, num_classes=num_classes)
         model = model.to(device)
         return model
 
