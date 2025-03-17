@@ -41,14 +41,14 @@ class SteatosisModel(nn.Module):
         
         # Modify final classifier
         in_features = self.model.classifier.in_features
-        self.model.classifier = nn.Sequential(OrderedDict([
-            ('dropout', nn.Dropout(p=0.2)),
-            ('classifier', nn.Linear(in_features, num_classes))
-        ]))
+        if num_classes == 2:  # Binary classification
+            self.model.classifier = nn.Linear(in_features, 1)  # Single output
+        else:  # Multi-class
+            self.model.classifier = nn.Linear(in_features, num_classes)
         
         # Initialize new layers
-        nn.init.xavier_uniform_(self.model.classifier.classifier.weight)
-        nn.init.zeros_(self.model.classifier.classifier.bias)
+        nn.init.xavier_uniform_(self.model.classifier.weight)
+        nn.init.zeros_(self.model.classifier.bias)
         
         if freeze_layers:
             self.freeze_pretrained_layers()
