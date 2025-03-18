@@ -7,9 +7,9 @@ from datetime import datetime
 import logging
 from tqdm import tqdm
 
-from model import SteatosisModel, get_loss_fn
-from data import create_dataloaders
-from evaluation import MetricsCalculator
+from src.model import SteatosisModel, get_loss_fn
+from src.data import create_dataloaders
+from src.evaluation import MetricsCalculator
 
 class Trainer:
     """Handles model training with phased fine-tuning strategy."""
