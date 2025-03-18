@@ -7,6 +7,8 @@ from PIL import Image
 import numpy as np
 from pathlib import Path
 
+from torch.utils.data import SequentialSampler
+
 class SteatosisDataset(Dataset):
     """Dataset for liver steatosis classification."""
     
@@ -162,6 +164,8 @@ def create_dataloaders(
     )
     
     # Create samplers for weighted sampling
+    print(train_dataset.class_weights)
+    print(test_dataset.class_weights)
     train_weights = [train_dataset.class_weights[label] 
                     for label in train_dataset.labels]
     train_sampler = torch.utils.data.WeightedRandomSampler(
@@ -182,7 +186,7 @@ def create_dataloaders(
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=num_workers,
         pin_memory=True
     )
