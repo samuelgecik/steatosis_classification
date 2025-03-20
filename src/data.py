@@ -33,9 +33,13 @@ class SteatosisDataset(Dataset):
         # Get all image paths and labels
         self.image_paths, self.labels = self._load_dataset()
         
-        # Convert labels to binary if specified
+        # Convert labels to numeric format
         if binary:
+            # Binary classification: Normal (0) vs. Steatosis (1)
             self.labels = [0 if label == 'Normal' else 1 for label in self.labels]
+        else:
+            # Multi-class classification: map each class to its index
+            self.labels = [self.label_to_idx[label] for label in self.labels]
         
         # Calculate class weights for weighted sampling
         self._calculate_class_weights()
@@ -48,17 +52,31 @@ class SteatosisDataset(Dataset):
         # Define the dataset structure
         split_dir = self.data_dir / 'DataSet' / self.split
         
+        # Determine which classes to load based on binary flag
+        if self.binary:
+            class_names = ['Normal', 'Mild', 'Moderate', 'Severe']
+        else:
+            # Exclude Normal class when not in binary mode
+            class_names = ['Mild', 'Moderate', 'Severe']
+        
         # Load images from each class directory
-        for class_name in ['Normal', 'Mild', 'Moderate', 'Severe']:
+        for class_name in class_names:
             class_dir = split_dir / class_name
             if not class_dir.exists():
                 continue
                 
-            # Get all PNG files (excluding .Zone.Identifier files)
+            # Get all PNG files
             class_files = [f for f in class_dir.glob('*.png')]
             
             image_paths.extend(class_files)
             labels.extend([class_name] * len(class_files))
+        
+        # Create label_to_idx mapping
+        if self.binary:
+            self.label_to_idx = None  # No mapping needed for binary
+        else:
+            labels_set = sorted(set(labels))
+            self.label_to_idx = {label: idx for idx, label in enumerate(labels_set)}
         
         return image_paths, labels
 
@@ -74,6 +92,7 @@ class SteatosisDataset(Dataset):
         else:
             # Calculate weights for multi-class classification
             labels_set = sorted(set(self.labels))
+            
             label_counts = {label: self.labels.count(label) 
                           for label in labels_set}
             total_samples = len(self.labels)
@@ -166,8 +185,14 @@ def create_dataloaders(
     # Create samplers for weighted sampling
     print(train_dataset.class_weights)
     print(test_dataset.class_weights)
-    train_weights = [train_dataset.class_weights[label] 
-                    for label in train_dataset.labels]
+    
+    # Calculate weights for each sample
+    if binary:
+        train_weights = [train_dataset.class_weights[label] for label in train_dataset.labels]
+    else:
+        # For non-binary classification
+        train_weights = [train_dataset.class_weights[label] for label in train_dataset.labels]
+    
     train_sampler = torch.utils.data.WeightedRandomSampler(
         weights=train_weights,
         num_samples=len(train_weights),
@@ -217,9 +242,9 @@ if __name__ == '__main__':
     get_dataset_info(data_dir)
     
     # Create dataloaders
-    train_loader, test_loader = create_dataloaders(data_dir, binary=True)
+    train_loader, test_loader = create_dataloaders(data_dir, binary=False)
     
     # Print sample batch
     images, labels = next(iter(train_loader))
     print(f"\nSample batch shape: {images.shape}")
-    print(f"Sample labels: {labels.numpy()}")
+    print(f"Sample labels: {labels}")
